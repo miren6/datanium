@@ -8,7 +8,7 @@ Ext.define('Datanium.util.CommonUtils', {
 		getCmpSearchKey : function(xtype, key) {
 			return '#' + Datanium.util.CommonUtils.genItemId(xtype, key);
 		},
-		getCurrentTab : function(tab) {
+		getCurrentTab : function() {
 			return Ext.getCmp('mainBox').getActiveTab();
 		},
 		getCmpInActiveTab : function(selector) {
@@ -56,17 +56,20 @@ Ext.define('Datanium.util.CommonUtils', {
 			queryParam.measures = meaNodes;
 			Datanium.util.CommonUtils.updateFields();
 		},
-		updateQueryParamByEP : function() {
+		updateQueryParamByEP : function(toggleDimension) {
 			var epItems = Datanium.util.CommonUtils.getCmpInActiveTab('elementPanel').items;
 			var dimNodes = [];
 			var meaNodes = [];
 			Ext.Array.each(epItems.items, function(rec) {
-				var id = rec.itemId;
-				var iconCls = rec.iconCls;
-				var name = rec.text;
+				var id = rec.uniqueName;
+				var eleType = rec.eleType;
+				var name = rec.tooltip;
 				var params = rec.params;
+				if (!rec.pressed && toggleDimension == Datanium.GlobalData.queryParam.primaryDimension) {
+					Datanium.GlobalData.queryParam.primaryDimension = null;
+				}
 				if (id != null && rec.pressed) {
-					if (iconCls == 'fa fa-bar-chart-o') {
+					if (eleType == 'mea') {
 						var meaItem = {
 							uniqueName : id,
 							text : name,
@@ -82,13 +85,22 @@ Ext.define('Datanium.util.CommonUtils', {
 							text : name,
 							data_type : 'dimension',
 							field_type : 'row',
+							// is_primary : false,
 							displayOrder : 0,
 							display : true
+						}
+						if (toggleDimension == id && Datanium.GlobalData.queryParam.primaryDimension == null) {
+							// dimItem.is_primary = true;
+							Datanium.GlobalData.queryParam.primaryDimension = id;
 						}
 						dimNodes.push(dimItem);
 					}
 				}
 			});
+			if (Datanium.GlobalData.queryParam.primaryDimension == null && dimNodes.length > 0) {
+				dimNodes[0].is_primary = true;
+				Datanium.GlobalData.queryParam.primaryDimension = dimNodes[0].uniqueName;
+			}
 			var queryParam = Datanium.GlobalData.queryParam;
 			queryParam.dimensions = dimNodes;
 			queryParam.measures = meaNodes;
@@ -145,7 +157,7 @@ Ext.define('Datanium.util.CommonUtils', {
 			return array;
 		},
 		refreshAll : function() {
-			Datanium.util.CommonUtils.getCmpInActiveTab('dynamicdatagrid').fireEvent('refreshDatagrid');
+			Datanium.util.CommonUtils.generateGrid();
 			Datanium.util.CommonUtils.generateChart();
 		},
 		removeElement : function(uniqueName) {
@@ -163,16 +175,19 @@ Ext.define('Datanium.util.CommonUtils', {
 				}
 			}
 		},
-		destoryChart : function() {
+		destroyChart : function() {
 			if (Datanium.util.CommonUtils.getCmpInActiveTab('columnchart') != null) {
 				Datanium.util.CommonUtils.getCmpInActiveTab('columnchart').destroy();
 			}
 			if (Datanium.util.CommonUtils.getCmpInActiveTab('stackchart') != null) {
 				Datanium.util.CommonUtils.getCmpInActiveTab('stackchart').destroy();
 			}
+			if (Datanium.util.CommonUtils.getCmpInActiveTab('linechart') != null) {
+				Datanium.util.CommonUtils.getCmpInActiveTab('linechart').destroy();
+			}
 		},
 		generateChart : function() {
-			Datanium.util.CommonUtils.destoryChart();
+			Datanium.util.CommonUtils.destroyChart();
 			var classname = 'widget.' + Datanium.GlobalData.chartMode;
 			var chart = Ext.create(classname, {
 				itemId : Datanium.util.CommonUtils.genItemId(Datanium.GlobalData.chartMode),
@@ -182,6 +197,76 @@ Ext.define('Datanium.util.CommonUtils', {
 				header : false
 			});
 			Datanium.util.CommonUtils.getCmpInActiveTab('datachartview').insert(chart);
+		},
+		destroyGrid : function() {
+			if (Datanium.util.CommonUtils.getCmpInActiveTab('dynamicdatagrid') != null) {
+				Datanium.util.CommonUtils.getCmpInActiveTab('dynamicdatagrid').destroy();
+			}
+		},
+		generateGrid : function() {
+			Datanium.util.CommonUtils.destroyGrid();
+			var grid = Ext.create('widget.dynamicdatagrid', {
+				xtype : 'dynamicdatagrid',
+				itemId : Datanium.util.CommonUtils.genItemId('dynamicdatagrid'),
+				region : 'center',
+				floatable : false,
+				collapsible : false,
+				header : false
+			});
+			Datanium.util.CommonUtils.getCmpInActiveTab('datagridview').insert(grid);
+		},
+		getStoreTemplate : function() {
+			var storeTemplate = {
+				extend : 'Ext.data.Store',
+				autoLoad : true,
+				proxy : {
+					type : 'memory',
+					reader : {
+						type : 'json',
+						root : 'result'
+					}
+				}
+			};
+			return storeTemplate;
+		},
+		limitLabelLength : function(label, len) {
+			if (label != null && label.length > len) {
+				return label.substr(0, len) + '...';
+			} else {
+				return label;
+			}
+		},
+		markPrimary : function() {
+			var primDim = Datanium.GlobalData.queryParam.primaryDimension;
+			var dimField = Datanium.util.CommonUtils.getCmpInActiveTab(Datanium.util.CommonUtils
+					.getCmpSearchKey('dimField'));
+			Ext.Array.each(dimField.items.items, function(rec, index) {
+				if (rec.uniqueName == primDim) {
+					var txt = rec.text;
+					dimField.items.items[index].setText("* " + txt);
+				}
+			});
+			var elemtPanel = Datanium.util.CommonUtils.getCmpInActiveTab(Datanium.util.CommonUtils
+					.getCmpSearchKey('elementPanel'));
+			Ext.Array.each(elemtPanel.items.items, function(rec, index) {
+				if (rec.eleType == 'dim') {
+					var txt = rec.text;
+					var starFlag = txt.indexOf("* ") > -1;
+					if (rec.uniqueName == primDim) {
+						if (!starFlag) {
+							elemtPanel.items.items[index].setText("* " + txt);
+						} else if (!rec.pressed) {
+							var newTxt = txt.substr(2, txt.length - 2);
+							elemtPanel.items.items[index].setText(newTxt);
+						}
+					} else {
+						if (starFlag) {
+							var newTxt = txt.substr(2, txt.length - 2);
+							elemtPanel.items.items[index].setText(newTxt);
+						}
+					}
+				}
+			});
 		}
 	}
 });

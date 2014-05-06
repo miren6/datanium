@@ -17,15 +17,19 @@ Ext.define('Datanium.view.ElementPanel', {
 				var msrs = Datanium.GlobalData.qubeInfo.measures;
 				Ext.Array.each(dims, function(d) {
 					var btn = {
-						itemId : d.uniqueName,
+						uniqueName : d.uniqueName,
 						xtype : 'splitbutton',
 						text : d.text,
+						tooltip : d.text,
+						tooltipType : 'title',
 						iconCls : 'fa fa-bars',
+						eleType : 'dim',
 						cls : 'elementBtn',
 						enableToggle : true,
 						textAlign : 'left',
-						toggleHandler : function() {
-							Datanium.util.CommonUtils.updateQueryParamByEP();
+						toggleHandler : function(me) {
+							Datanium.util.CommonUtils.updateQueryParamByEP(me.uniqueName);
+							Datanium.util.CommonUtils.markPrimary();
 							Datanium.util.CommonUtils.getCmpInActiveTab('elementPanel').fireEvent('selectionChange');
 						},
 						menu : [
@@ -39,11 +43,28 @@ Ext.define('Datanium.view.ElementPanel', {
 										Datanium.util.CommonUtils.getCmpInActiveTab('elementPanel').fireEvent(
 												'selectionChange');
 									}
-								}, {
+								},
+								{
 									iconCls : 'fa fa-filter',
 									text : 'Filter',
 									handler : function() {
-
+										var btn = this.parentMenu.ownerButton;
+										Datanium.util.CommonUtils.getCmpInActiveTab('elementPanel').fireEvent(
+												'popFilter', btn.uniqueName, btn.text);
+									}
+								},
+								{
+									iconCls : 'fa fa-star',
+									text : 'Primary Dimension for Charts',
+									handler : function() {
+										var btn = this.parentMenu.ownerButton;
+										if (!btn.pressed)
+											btn.toggle();
+										Datanium.GlobalData.queryParam.primaryDimension = btn.uniqueName;
+										Datanium.util.CommonUtils.updateQueryParamByEP(btn.uniqueName);
+										Datanium.util.CommonUtils.markPrimary();
+										Datanium.util.CommonUtils.getCmpInActiveTab('elementPanel').fireEvent(
+												'selectionChange');
 									}
 								} ]
 					}
@@ -51,14 +72,17 @@ Ext.define('Datanium.view.ElementPanel', {
 				});
 				Ext.Array.each(msrs, function(m) {
 					var btn = {
-						itemId : m.uniqueName,
+						uniqueName : m.uniqueName,
 						xtype : 'splitbutton',
-						text : m.text + ' - ' + m.data_source,
+						text : Datanium.util.CommonUtils.limitLabelLength(m.text + ' - ' + m.data_source, 32),
+						tooltip : m.text + ' - ' + m.data_source,
+						tooltipType : 'title',
 						params : {
 							data_type : m.data_type,
 							data_source : m.data_source
 						},
 						iconCls : 'fa fa-bar-chart-o',
+						eleType : 'mea',
 						cls : 'elementBtn',
 						enableToggle : true,
 						textAlign : 'left',

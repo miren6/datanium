@@ -6,9 +6,9 @@ function genChartStore(template, fields) {
 		var queryResult = JSON.parse(JSON.stringify(Datanium.GlobalData.QueryResult4Chart));
 		template.data = mergeDimensions(queryResult);
 	}
-	eval("StackChartStore = Ext.create('Ext.data.Store'," + Ext.encode(template) + ");");
-	StackChartStore.load();
-	return StackChartStore;
+	eval("LineChartStore = Ext.create('Ext.data.Store'," + Ext.encode(template) + ");");
+	LineChartStore.load();
+	return LineChartStore;
 }
 
 function mergeDimensions(queryResult) {
@@ -38,14 +38,42 @@ function mergeFields(fields) {
 	return fields;
 }
 
+function generateSeries(yFields, yFieldsTxt, xFieldsLabel) {
+	var series = [];
+	Ext.Array.each(yFields, function(yfld, index) {
+		var s = {
+			type : 'line',
+			axis : false,
+			highlight : true,
+			smooth : true,
+			fill : true,
+			tips : {
+				style : 'background:#fff; text-align: center;',
+				trackMouse : true,
+				width : 140,
+				height : 28,
+				renderer : function(storeItem, item) {
+					this.setTitle(storeItem.get(yfld) + '');
+					this.width = this.title.length * 10;
+				}
+			},
+			xField : xFieldsLabel,
+			yField : yfld,
+			title : yFieldsTxt[index]
+		};
+		series.push(s);
+	});
+	return series;
+}
+
 var fields = [];
 var xFields = [];
 var yFields = [];
 var xFieldsLabel = "";
 
-Ext.define('Datanium.view.charts.StackChart', {
+Ext.define('Datanium.view.charts.LineChart', {
 	extend : 'Ext.chart.Chart',
-	alias : 'widget.stackchart',
+	alias : 'widget.linechart',
 	initComponent : function() {
 		Ext.apply(this, {
 			layout : 'fit',
@@ -62,6 +90,7 @@ Ext.define('Datanium.view.charts.StackChart', {
 		fields = [];
 		xFields = [];
 		yFields = [];
+		yFieldsTxt = [];
 		xFieldsLabel = "";
 		var fields_json = null;
 		var results_json = null;
@@ -118,25 +147,7 @@ Ext.define('Datanium.view.charts.StackChart', {
 			position : 'bottom',
 			fields : xFieldsLabel
 		} ];
-		this.series = [ {
-			type : 'column',
-			axis : 'left',
-			highlight : true,
-			tips : {
-				style : 'background:#fff; text-align: center;',
-				trackMouse : true,
-				width : 140,
-				height : 28,
-				renderer : function(storeItem, item) {
-					this.setTitle(storeItem.get(item.yField) + '');
-					this.width = this.title.length * 10;
-				}
-			},
-			xField : xFieldsLabel,
-			yField : yFields,
-			title : yFieldsTxt,
-			stacked : true
-		} ]
+		this.series = generateSeries(yFields, yFieldsTxt, xFieldsLabel);
 		this.callParent();
 	}
 });

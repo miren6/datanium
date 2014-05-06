@@ -1,18 +1,11 @@
-var columnchart_store_template = {
-	extend : 'Ext.data.Store',
-	autoLoad : true,
-	proxy : {
-		type : 'memory',
-		reader : {
-			type : 'json',
-			root : 'result'
-		}
-	}
-};
+var chart_store_template = Datanium.util.CommonUtils.getStoreTemplate();
 
 function genChartStore(template, fields) {
 	template.fields = mergeFields(fields);
-	template.data = mergeDimensions(Datanium.GlobalData.QueryResult);
+	if (Datanium.GlobalData.QueryResult4Chart != null) {
+		var queryResult = JSON.parse(JSON.stringify(Datanium.GlobalData.QueryResult4Chart));
+		template.data = mergeDimensions(queryResult);
+	}
 	// console.log("ColumnChartStore = Ext.create('Ext.data.Store'," +
 	// Ext.encode(template) + ");");
 	eval("ColumnChartStore = Ext.create('Ext.data.Store'," + Ext.encode(template) + ");");
@@ -71,15 +64,16 @@ Ext.define('Datanium.view.charts.ColumnChart', {
 		fields = [];
 		xFields = [];
 		yFields = [];
+		yFieldsTxt = [];
 		xFieldsLabel = "";
 		var fields_json = null;
 		var results_json = null;
 		if (Datanium.GlobalData.enableQuery) {
 			if (Datanium.GlobalData.queryParam != null) {
 				fields_json = Datanium.GlobalData.queryParam;
-				if (Datanium.GlobalData.QueryResult != null) {
+				if (Datanium.GlobalData.QueryResult4Chart != null) {
 					this.hidden = false;
-					results_json = Datanium.GlobalData.QueryResult;
+					results_json = Datanium.GlobalData.QueryResult4Chart;
 				}
 			} else {
 				fields = [];
@@ -106,18 +100,19 @@ Ext.define('Datanium.view.charts.ColumnChart', {
 					if (f.display) {
 						fields.push(f.uniqueName);
 						yFields.push(f.uniqueName);
+						yFieldsTxt.push(f.text);
 					}
 				}
 			}
 		}
+		var store = genChartStore(chart_store_template, fields);
+		this.store = store;
 		// console.log(fields);
 		// console.log(xFields);
 		// console.log(xFieldsLabel);
 		// console.log(yFields);
 		// console.log(fields_json);
 		// console.log(results_json);
-		var store = genChartStore(columnchart_store_template, fields);
-		this.store = store;
 		this.axes = [ {
 			type : 'Numeric',
 			position : 'left',
@@ -142,8 +137,8 @@ Ext.define('Datanium.view.charts.ColumnChart', {
 				width : 140,
 				height : 28,
 				renderer : function(storeItem, item) {
-					this.setTitle(item.yField + ': ' + storeItem.get(item.yField) + ' $');
-					this.width = this.title.length * 7.8;
+					this.setTitle(storeItem.get(item.yField) + '');
+					this.width = this.title.length * 10;
 				}
 			},
 			/*
@@ -151,29 +146,10 @@ Ext.define('Datanium.view.charts.ColumnChart', {
 			 * 'China', 'US' ], renderer : Ext.util.Format.numberRenderer('0'),
 			 * orientation : 'horizontal', color : '#fff' },
 			 */
-			xField : xFields,
-			yField : yFields
+			xField : xFieldsLabel,
+			yField : yFields,
+			title : yFieldsTxt
 		} ]
 		this.callParent();
-		this.addEvents('refreshColumnChart');
-		this.on('refreshColumnChart',
-				function() {
-					console.log('refreshColumnChart');
-					if (Datanium.util.CommonUtils.getCmpInActiveTab('columnchart') != null) {
-						var activeItemId = Datanium.util.CommonUtils.getCmpInActiveTab('datapanel').getLayout()
-								.getActiveItem().id;
-						Datanium.util.CommonUtils.destoryChart();
-						Datanium.util.CommonUtils.getCmpInActiveTab('datachartview').insert(0,
-								Ext.create('Datanium.view.charts.ColumnChart', {
-									xtype : 'columnchart',
-									itemId : Datanium.util.CommonUtils.genItemId('columnchart'),
-									region : 'center',
-									floatable : false,
-									collapsible : false,
-									header : false,
-									hidden : true
-								}));
-					}
-				});
 	}
 });

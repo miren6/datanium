@@ -2,6 +2,7 @@ var data = require('../data/sampleData');
 var mongodb = require('../data/mongodb');
 var indicator = require('../data/indicator');
 var dataset = require('../data/dataset');
+var async = require('../lib/async');
 var IndicatorSchema = indicator.Indicator;
 var datasetSchema = dataset.Dataset;
 
@@ -16,33 +17,74 @@ exports.cubeInfo = function(req, res) {
 exports.queryResult = function(req, res) {
 	var queryParam = req.body;
 	var resultJSON = {
-		"total" : 0,
-		"result" : []
+		"grid" : {
+			"total" : 0,
+			"result" : []
+		},
+		"chart" : {
+			"result" : []
+		}
 	};
-	var groupStr = generateGroupStr(queryParam);
-	var groupObj = eval("(" + groupStr + ")");
-	datasetSchema.aggregate().group(groupObj).exec(function(err, doc) {
-		if (err)
-			return handleError(err);
-		resultJSON.result = convertResult(doc);
-		resultJSON.total = doc.length;
+	var groupObj = generateGroupObj(queryParam, false);
+	var groupObj4Chart = generateGroupObj(queryParam, true);
+	var matchObj = generateMatchObj(queryParam);
+	var sortStr = generateSortStr(queryParam);
+	// to get all the query results and return
+	async.parallel([
+			function(callback) {
+				// query for grid
+				datasetSchema.aggregate().match(matchObj).group(groupObj).sort(sortStr).limit(500).exec(
+						function(err, doc) {
+							if (err)
+								throw err;
+							resultJSON.grid.result = convertResult(doc, false);
+							resultJSON.grid.total = doc.length;
+							callback();
+						});
+			},
+			function(callback) {
+				// query for chart
+				datasetSchema.aggregate().match(matchObj).group(groupObj4Chart).sort(sortStr).limit(500).exec(
+						function(err, doc) {
+							if (err)
+								throw err;
+							resultJSON.chart.result = convertResult(doc, true);
+							callback();
+						});
+			} ], function() {
 		res.send(resultJSON);
 	});
 };
 
-function generateGroupStr(queryParam) {
+function generateGroupObj(queryParam, isChart) {
 	var dimensions = queryParam.dimensions;
 	var measures = queryParam.measures;
+	var breakException = {};
 	var idStr = "_id:{";
-	dimensions.forEach(function(item, index) {
-		idStr += item.uniqueName;
-		idStr += ":\"$";
-		idStr += item.uniqueName;
-		idStr += "\"";
-		if (index < dimensions.length - 1) {
-			idStr += ","
-		}
-	});
+	try {
+		dimensions.forEach(function(item, index) {
+			if (isChart) {
+				if (item.uniqueName == queryParam.primaryDimension) {
+					idStr += item.uniqueName;
+					idStr += ":\"$";
+					idStr += item.uniqueName;
+					idStr += "\"";
+					throw breakException;
+				}
+			} else {
+				idStr += item.uniqueName;
+				idStr += ":\"$";
+				idStr += item.uniqueName;
+				idStr += "\"";
+				if (index < dimensions.length - 1) {
+					idStr += ","
+				}
+			}
+		});
+	} catch (e) {
+		if (e !== breakException)
+			throw e;
+	}
 	idStr += "},"
 	var indicatorStr = "";
 	measures.forEach(function(item, index) {
@@ -64,10 +106,44 @@ function generateGroupStr(queryParam) {
 		}
 	});
 	var res = "{" + idStr + indicatorStr + "}";
-	return res;
+	var returnObj = eval("(" + res + ")");
+	return returnObj;
 }
 
-function convertResult(doc) {
+function generateMatchObj(queryParam) {
+	var dimensions = queryParam.dimensions;
+	var filters = queryParam.filters;
+	var filterArray = [];
+	dimensions.forEach(function(item, index) {
+		if (item.uniqueName in filters) {
+			var array = eval('filters.' + item.uniqueName);
+			var str = '';
+			if (item.uniqueName == 'year') {
+				str = array.join(",");
+			} else {
+				str = "'" + array.join("','") + "'";
+			}
+			filterArray.push(item.uniqueName + ': {$in:[' + str + ']}');
+		}
+	});
+	var matchStr = '{ ' + filterArray.join(",") + ' }';
+	console.log(matchStr);
+	var returnObj = eval("(" + matchStr + ")");
+	return returnObj;
+}
+
+function generateSortStr(queryParam) {
+	var measures = queryParam.measures;
+	var sortStr = 'field -';
+	if (measures != null && measures.length > 0) {
+		sortStr += measures[0].uniqueName;
+		return sortStr;
+	} else {
+		return null;
+	}
+}
+
+function convertResult(doc, isChart) {
 	var results = [];
 	doc.forEach(function(item) {
 		var gstr = JSON.stringify(item._id);
@@ -79,7 +155,27 @@ function convertResult(doc) {
 		var recordObj = eval("(" + recordStr + ")");
 		results.push(recordObj);
 	});
+	// sort result by year for charts
+	if (isChart) {
+		if (results.length > 0 && 'year' in results[0])
+			bubbleSort(results, 'year');
+	}
 	return results;
+}
+
+function bubbleSort(a, par) {
+	var swapped;
+	do {
+		swapped = false;
+		for ( var i = 0; i < a.length - 1; i++) {
+			if (a[i][par] > a[i + 1][par]) {
+				var temp = a[i];
+				a[i] = a[i + 1];
+				a[i + 1] = temp;
+				swapped = true;
+			}
+		}
+	} while (swapped);
 }
 
 exports.indicatorMapping = function(req, res) {
@@ -91,6 +187,8 @@ exports.indicatorMapping = function(req, res) {
 	IndicatorSchema.find({
 		indicator_key : idc
 	}, function(err, doc) {
+		if (err)
+			throw err;
 		doc.forEach(function(item, index) {
 			var tempDimensions = item.dimension;
 			tempDimensions.forEach(function(dimension, index) {
@@ -130,6 +228,8 @@ exports.indicatorSearch = function(req, res) {
 				$options : 'i'
 			}
 		}, function(err, doc) {
+			if (err)
+				throw err;
 			doc.forEach(function(item, index) {
 				var tempJson = {
 					"uniqueName" : item.indicator_key,
@@ -149,3 +249,31 @@ exports.indicatorSearch = function(req, res) {
 		res.send(indicatorResultJSON);
 	}
 };
+
+exports.dimensionValueSearch = function(req, res) {
+	var query = require('url').parse(req.url, true).query;
+	var dimensionValueResultJSON = {};
+	if (query.dim != null) {
+		var key = query.dim.toLowerCase();
+		var results = [];
+		datasetSchema.distinct(key, function(err, doc) {
+			if (err)
+				throw err;
+			doc.forEach(function(item, index) {
+				var tempJson = {
+					"name" : item
+				};
+				results.push(tempJson);
+			});
+			dimensionValueResultJSON = {
+				"dimensionValues" : results
+			};
+			res.send(dimensionValueResultJSON);
+		});
+	} else {
+		dimensionValueResultJSON = {
+			"dimensionValues" : []
+		};
+		res.send(dimensionValueResultJSON);
+	}
+}
