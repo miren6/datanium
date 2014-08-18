@@ -1,15 +1,12 @@
 Ext.define('Datanium.controller.Homepage', {
 	extend : 'Ext.app.Controller',
-	views : [ 'Toolbar', 'ReportTemplate', 'LeftPanel', 'CubeCombo', 'IndicatorSearchCombo', 'Accordion',
-			'DimensionTree', 'MeasureTree', 'ElementPanel', 'DataPanel', 'InnerToolbar' ],
-	models : [ 'CubeName', 'Indicator' ],
-	stores : [ 'CubeNames', 'Indicators' ],
+	views : [ 'Toolbar', 'ReportTemplate', 'LeftPanel', 'IndicatorSearchCombo', 'Accordion', 'ElementPanel',
+			'DataPanel', 'InnerToolbar' ],
+	models : [ 'Indicator' ],
+	stores : [ 'Indicators' ],
 	init : function() {
 		this.control({
 			'viewport reporttemplate' : {},
-			'leftpanel > cubecombo' : {
-				select : this.loadTrees
-			},
 			'leftpanel > searchcombo' : {
 				select : this.addIndicator
 			},
@@ -29,15 +26,28 @@ Ext.define('Datanium.controller.Homepage', {
 					}
 				}
 			},
+			'inner-toolbar > button[action=analysis-mode]' : {
+				click : function(btn) {
+					if (Datanium.GlobalData.rptMode != 'analysis') {
+						Datanium.GlobalData.rptMode = 'analysis';
+						Datanium.util.CommonUtils.getCmpInActiveTab('datapanel').getLayout().setActiveItem(2);
+						Datanium.util.CommonUtils.getCmpInActiveTab('demo-analysis').fireEvent('analysisInit');
+					}
+				}
+			},
 			'inner-toolbar > button[action=clear]' : {
 				click : function(btn) {
-					Datanium.GlobalData.queryParam = {
-						dimensions : [],
-						measures : [],
-						groups : []
-					};
-					Datanium.GlobalData.QueryResult = null;
-					Datanium.util.CommonUtils.getCmpInActiveTab('elementPanel').fireEvent('refreshElementPanel');
+					Datanium.util.CommonUtils.cleanData();
+				}
+			},
+			'inner-toolbar > button[action=show-fields]' : {
+				click : function(btn) {
+					var fieldpanel = Datanium.util.CommonUtils.getCmpInActiveTab('fieldpanel');
+					if (btn.pressed) {
+						fieldpanel.show();
+					} else {
+						fieldpanel.hide();
+					}
 				}
 			},
 			'inner-toolbar > button[action=auto-run]' : {
@@ -56,78 +66,50 @@ Ext.define('Datanium.controller.Homepage', {
 			}
 		});
 	},
-
-	loadTrees : function(combobox, newValue, oldValue, eOpts) {
-		var cubeInfoStore = this.getStore('CubeInfos');
-		var leftpanel = Datanium.util.CommonUtils.getCmpInActiveTab('leftpanel');
-		var mask = new Ext.LoadMask(leftpanel, {
-			msg : "Loading..."
-		});
-		mask.show();
-		cubeInfoStore.load({
-			scope : this,
-			params : {
-				cubeName : combobox.getValue()
-			},
-			callback : function(records, operation, success) {
-				if (success) {
-					var tmpstore = records[0];
-					var dimensionTree = Datanium.util.CommonUtils.getCmpInActiveTab('dimensionTree');
-					var measureTree = Datanium.util.CommonUtils.getCmpInActiveTab('measureTree');
-					var dimensionData = {};
-					var measureData = {};
-					dimensionData.children = tmpstore.data.dimensions;
-					dimensionTree.store.setRootNode(dimensionData);
-					measureData.children = tmpstore.data.measures;
-					measureTree.store.setRootNode(measureData);
-					Datanium.GlobalData.qubeInfo.dimensions = tmpstore.data.dimensions;
-					Datanium.GlobalData.qubeInfo.measures = tmpstore.data.measures;
-					Datanium.util.CommonUtils.getCmpInActiveTab('elementPanel').fireEvent('refreshElementPanel');
-					mask.destroy();
-				} else {
-					console.log('cube loading failed');
-					mask.destroy();
-				}
-			}
-		});
-	},
-	addIndicator : function(combobox, newValue, oldValue, eOpts) {
+	addIndicator : function(combobox) {
+		var key = '';
+		if (typeof combobox === 'object') // from extjs combobox
+			key = combobox.getValue();
+		if (typeof combobox === 'string') // from outside page search box
+			key = combobox
 		var leftpanel = Datanium.util.CommonUtils.getCmpInActiveTab('leftpanel');
 		var mask = new Ext.LoadMask(leftpanel, {
 			msg : "Loading..."
 		});
 		mask.show();
 		var requestConfig = {
-			url : '/rest/indicator/map?idc=' + combobox.getValue(),
+			url : '/rest/indicator/map?idc=' + key,
 			timeout : 300000,
 			success : function(response) {
 				mask.destroy();
 				var result = Ext.JSON.decode(response.responseText, true);
 				Datanium.GlobalData.qubeInfo.dimensions = Datanium.util.CommonUtils.pushElements2Array(
-						result.dimensions, Datanium.GlobalData.qubeInfo.dimensions);				
+						result.dimensions, Datanium.GlobalData.qubeInfo.dimensions);
 				Datanium.GlobalData.qubeInfo.measures = Datanium.util.CommonUtils.pushElements2Array(result.measures,
-						Datanium.GlobalData.qubeInfo.measures);				
+						Datanium.GlobalData.qubeInfo.measures);
+				// clean up the query param/result when adding indicator.
+				// should enhance this to keeping param in the future.
+				// Datanium.util.CommonUtils.cleanData();
 				Datanium.util.CommonUtils.getCmpInActiveTab('elementPanel').fireEvent('refreshElementPanel');
 			},
 			failure : function() {
 				mask.destroy();
 			}
 		};
-		if(this.isValidMeasures()){
-		Ext.Ajax.request(requestConfig);
-		}else{
-			Ext.MessageBox.alert("Alert","Sorry, you cannot add more than 10 measures!");
+		if (this.isValidMeasures()) {
+			Ext.Ajax.request(requestConfig);
+		} else {
+			Ext.MessageBox.alert("Alert", "Sorry, you cannot add more than 10 measures.");
 			mask.destroy();
 		}
 
 	},
 	isValidMeasures : function() {
 		var measures = Datanium.GlobalData.qubeInfo.measures;
-		if(measures.length>=10){
+		if (measures.length >= 10) {
 			return false;
-		}else{
+		} else {
 			return true;
 		}
 	}
-	
 });

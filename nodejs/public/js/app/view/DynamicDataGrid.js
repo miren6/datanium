@@ -89,10 +89,12 @@ function columnCellStyle(column, field) {
 	}
 
 	var rendererVal = "";
-
-	if (field.data_type == 'measure') {
+	if (field.data_type == 'number') {
 		column.tdCls = "x-grid-cell-inner-right";
 		rendererVal = rendererVal + "value = Ext.util.Format.number(value, '0,000.####');";
+	} else if (field.data_type == 'percentage') {
+		column.tdCls = "x-grid-cell-inner-right";
+		rendererVal = rendererVal + "value = Ext.util.Format.number(value, '00.##%');";
 	} else {
 		column.tdCls = "x-grid-cell-inner-left";
 	}
@@ -182,9 +184,9 @@ Ext.define('Datanium.view.DynamicDataGrid', {
 					if (f.display)
 						fields.push(f);
 				}
-				for ( var i = 0; i < fields_json.groups.length; i++) {
-					groups.push(fields_json.groups[i]);
-				}
+				// for ( var i = 0; i < fields_json.groups.length; i++) {
+				// groups.push(fields_json.groups[i]);
+				//				}
 			}
 		}
 		// console.log(fields);
@@ -210,22 +212,17 @@ Ext.define('Datanium.view.DynamicDataGrid', {
 		this.store = store;
 		this.columns = columns;
 		this.callParent();
-		/*this.addEvents('refreshDatagrid');
-		this.on('refreshDatagrid',
-				function() {
-					console.log('refreshDatagrid');
-					if (Datanium.util.CommonUtils.getCmpInActiveTab('dynamicdatagrid') != null) {
-						destroyGrid('dynamicdatagrid');
-						Datanium.util.CommonUtils.getCmpInActiveTab('datagridview').insert(0,
-								Ext.create('Datanium.view.DynamicDataGrid', {
-									xtype : 'dynamicdatagrid',
-									itemId : Datanium.util.CommonUtils.genItemId('dynamicdatagrid'),
-									region : 'center',
-									floatable : false,
-									collapsible : false,
-									header : false
-								}).show());
-					}
-				});*/
+		/*
+		 * this.addEvents('refreshDatagrid'); this.on('refreshDatagrid',
+		 * function() { console.log('refreshDatagrid'); if
+		 * (Datanium.util.CommonUtils.getCmpInActiveTab('dynamicdatagrid') !=
+		 * null) { destroyGrid('dynamicdatagrid');
+		 * Datanium.util.CommonUtils.getCmpInActiveTab('datagridview').insert(0,
+		 * Ext.create('Datanium.view.DynamicDataGrid', { xtype :
+		 * 'dynamicdatagrid', itemId :
+		 * Datanium.util.CommonUtils.genItemId('dynamicdatagrid'), region :
+		 * 'center', floatable : false, collapsible : false, header : false
+		 * }).show()); } });
+		 */
 	}
 });

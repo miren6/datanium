@@ -9,7 +9,8 @@ Ext.define('Datanium.util.CommonUtils', {
 			return '#' + Datanium.util.CommonUtils.genItemId(xtype, key);
 		},
 		getCurrentTab : function() {
-			return Ext.getCmp('mainBox').getActiveTab();
+			// return Ext.getCmp('mainBox').getActiveTab();
+			return Ext.getCmp('mainBox');
 		},
 		getCmpInActiveTab : function(selector) {
 			return this.getCurrentTab().down(selector);
@@ -89,9 +90,12 @@ Ext.define('Datanium.util.CommonUtils', {
 							displayOrder : 0,
 							display : true
 						}
-						if (toggleDimension == id && Datanium.GlobalData.queryParam.primaryDimension == null) {
-							// dimItem.is_primary = true;
-							Datanium.GlobalData.queryParam.primaryDimension = id;
+						if (toggleDimension == id) {
+							if (Datanium.GlobalData.queryParam.primaryDimension == null
+									|| Datanium.GlobalData.queryParam.primaryDimension == '') {
+								// dimItem.is_primary = true;
+								Datanium.GlobalData.queryParam.primaryDimension = id;
+							}
 						}
 						dimNodes.push(dimItem);
 					}
@@ -106,6 +110,28 @@ Ext.define('Datanium.util.CommonUtils', {
 			queryParam.measures = meaNodes;
 			Datanium.GlobalData.QueryResult = null;
 			Datanium.util.CommonUtils.updateFields();
+		},
+		updateEPSelection : function() {
+			var epItems = Datanium.util.CommonUtils.getCmpInActiveTab('elementPanel').items;
+			var queryParam = Datanium.GlobalData.queryParam;
+			var dimNodes = queryParam.dimensions;
+			var meaNodes = queryParam.measures;
+			var autoRun = Datanium.GlobalData.autoRun;
+			Datanium.GlobalData.autoRun = false;
+			Ext.Array.each(epItems.items, function(rec, idx) {
+				var id = rec.uniqueName;
+				Ext.Array.each(dimNodes, function(d) {
+					if (id === d.uniqueName) {
+						epItems.items[idx].toggle();
+					}
+				});
+				Ext.Array.each(meaNodes, function(m) {
+					if (id === m.uniqueName) {
+						epItems.items[idx].toggle();
+					}
+				});
+			});
+			Datanium.GlobalData.autoRun = autoRun;
 		},
 		updateFields : function() {
 			var dimField = Datanium.util.CommonUtils.getCmpInActiveTab(Datanium.util.CommonUtils
@@ -140,6 +166,27 @@ Ext.define('Datanium.util.CommonUtils', {
 			// console.log(dimField);
 			// console.log(meaField);
 			// console.log(Datanium.GlobalData.queryParam);
+		},
+		updateFilterFields : function() {
+			var fltField = Datanium.util.CommonUtils.getCmpInActiveTab(Datanium.util.CommonUtils
+					.getCmpSearchKey('fltField'));
+			fltField.removeAll();
+			var queryParam = Datanium.GlobalData.queryParam;
+			var dimensions = queryParam.dimensions;
+			if ('filters' in queryParam) {
+				for (key in queryParam.filters) {
+					Ext.Array.each(dimensions, function(dim) {
+						if (key == dim.uniqueName) {
+							var field = {
+								uniqueName : key,
+								text : dim.text,
+								cls : 'fieldBtn-f'
+							};
+							fltField.add(field);
+						}
+					});
+				}
+			}
 		},
 		pushElements2Array : function(items, array) {
 			Ext.Array.each(items, function(item) {
@@ -188,7 +235,8 @@ Ext.define('Datanium.util.CommonUtils', {
 		},
 		generateChart : function() {
 			Datanium.util.CommonUtils.destroyChart();
-			var classname = 'widget.' + Datanium.GlobalData.chartMode;
+			var classname = 'widget.'
+					+ (Datanium.GlobalData.chartMode == '' ? 'columnchart' : Datanium.GlobalData.chartMode);
 			var chart = Ext.create(classname, {
 				itemId : Datanium.util.CommonUtils.genItemId(Datanium.GlobalData.chartMode),
 				region : 'center',
@@ -246,27 +294,120 @@ Ext.define('Datanium.util.CommonUtils', {
 					dimField.items.items[index].setText("* " + txt);
 				}
 			});
-			var elemtPanel = Datanium.util.CommonUtils.getCmpInActiveTab(Datanium.util.CommonUtils
-					.getCmpSearchKey('elementPanel'));
-			Ext.Array.each(elemtPanel.items.items, function(rec, index) {
-				if (rec.eleType == 'dim') {
-					var txt = rec.text;
-					var starFlag = txt.indexOf("* ") > -1;
-					if (rec.uniqueName == primDim) {
-						if (!starFlag) {
-							elemtPanel.items.items[index].setText("* " + txt);
-						} else if (!rec.pressed) {
-							var newTxt = txt.substr(2, txt.length - 2);
-							elemtPanel.items.items[index].setText(newTxt);
-						}
-					} else {
-						if (starFlag) {
-							var newTxt = txt.substr(2, txt.length - 2);
-							elemtPanel.items.items[index].setText(newTxt);
+		},
+		scaleLg10 : function(number) {
+			if (number <= 0)
+				return NaN;
+			else
+				return (Math.log(number) / Math.LN10).toFixed(3);
+		},
+		scaleLn : function(number) {
+			if (number <= 0)
+				return NaN;
+			else
+				return Math.log(number).toFixed(3);
+		},
+		getScaleFactor : function(array) {
+			var sum = 0;
+			for ( var i = 0; i < array.length; i++) {
+				sum += array[i];
+			}
+			var avg = sum / array.length;
+			return 1000 / avg;
+		},
+		isNumber : function(n) {
+			return !isNaN(parseFloat(n));
+		},
+		scaleMeasures : function(queryResult, yFields) {
+			for ( var j = 0; j < yFields.length; j++) {
+				var numbers = [];
+				for ( var i = 0; i < queryResult.result.length; i++) {
+					if (yFields[j] in queryResult.result[i]) {
+						var number = (queryResult.result[i])[yFields[j]];
+						numbers.push(number);
+					}
+				}
+				// console.log(numbers);
+				var sf = Datanium.util.CommonUtils.getScaleFactor(numbers);
+				// console.log(sf);
+				if (Datanium.util.CommonUtils.isNumber(sf)) {
+					for ( var i = 0; i < queryResult.result.length; i++) {
+						if (yFields[j] in queryResult.result[i]) {
+							var number = (queryResult.result[i])[yFields[j]];
+							(queryResult.result[i])[yFields[j]] = number * sf;
 						}
 					}
 				}
+			}
+			return queryResult;
+		},
+		getSplitMeasures : function(measure, splitValue) {
+			var returnArray = [];
+			Ext.Array.each(splitValue, function(rec, index) {
+				var cvtVal = rec;
+				if (typeof rec === 'string')
+					cvtVal = Datanium.util.CommonUtils.convertSplitValue(rec);
+				var obj = {
+					uniqueName : measure.uniqueName + '_' + cvtVal,
+					text : measure.text + ' - ' + rec,
+					display : true
+				};
+				returnArray.push(obj);
 			});
+			return returnArray;
+		},
+		convertSplitValue : function(str) {
+			var returnStr = str.trim().replace(/ |-|&|\(|\)|\,|\./g, '');
+			return returnStr;
+		},
+		markSelection : function(selectedItem) {
+			var menuItems = selectedItem.parentMenu.items.items;
+			Ext.Array.each(menuItems, function(item, i) {
+				item.setIconCls('');
+			});
+			selectedItem.setIconCls('fa fa-star-o');
+		},
+		clearPopDimFilter : function() {
+			var key = Datanium.GlobalData.popDimensionKey;
+			var selections = eval('Datanium.GlobalData.queryParam.filters.' + key + '=[]');
+		},
+		splitFilter : function(popSelection) {
+			var key = Datanium.GlobalData.queryParam.primaryFilter;
+			// time dimension no quotes
+			var popSelStr = '';
+			if (key == 'year') {
+				popSelStr = popSelection.join(",");
+			} else {
+				popSelStr = "'" + popSelection.join("','") + "'";
+			}
+			if (popSelStr.length > 0) {
+				// console.log('Datanium.GlobalData.queryParam.filters.' + key +
+				// '=[' + popSelStr + ']');
+				eval('Datanium.GlobalData.queryParam.filters.' + key + '=[' + popSelStr + ']');
+				var splitObj = {
+					dimensions : key,
+					splitValue : popSelection
+				};
+				Datanium.GlobalData.queryParam.split = splitObj;
+				Datanium.GlobalData.queryParam.isSplit = true;
+			}
+		},
+		cleanData : function() {
+			Datanium.GlobalData.queryParam = {
+				dimensions : [],
+				measures : [],
+				groups : [],
+				filters : {},
+				primaryDimension : null,
+				split : {
+					dimensions : null,
+					splitValue : []
+				},
+				isSplit : false
+			};
+			Datanium.GlobalData.QueryResult = null;
+			Datanium.GlobalData.QueryResult4Chart = null;
+			Datanium.util.CommonUtils.getCmpInActiveTab('elementPanel').fireEvent('refreshElementPanel');
 		}
 	}
 });

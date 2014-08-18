@@ -13,9 +13,10 @@ Ext.define('Datanium.view.FilterBox', {
 
 		popup.show({
 			title : 'Select ' + Datanium.GlobalData.popDimension,
-			buttons : Ext.Msg.OKCANCEL,
+			buttons : Ext.Msg.YESNOCANCEL,
 			buttonText : {
-				ok : 'Submit'
+				yes : 'Submit',
+				no : 'Clear'
 			},
 			fn : this.submitFilter
 		});
@@ -43,7 +44,12 @@ Ext.define('Datanium.view.FilterBox', {
 								return;
 							}
 						});
-						popSelection.push(me.uniqueName);
+						if (popSelection.length >= 10) {
+							Ext.MessageBox.alert("Alert", "Sorry, you cannot select more than 10 filter values.");
+							me.toggle();
+						} else {
+							popSelection.push(me.uniqueName);
+						}
 					} else {
 						Ext.Array.each(popSelection, function(rec, index) {
 							if (rec == me.uniqueName) {
@@ -79,19 +85,17 @@ Ext.define('Datanium.view.FilterBox', {
 		popup.center();
 	},
 	submitFilter : function(buttonId, text, opt) {
-		if (buttonId == 'ok') {
+		if (buttonId == 'yes' && popSelection.length > 0) {
+			Datanium.GlobalData.queryParam.primaryFilter = Datanium.GlobalData.popDimensionKey;
+			Datanium.util.CommonUtils.splitFilter(popSelection);
+		} else {
+			// Datanium.GlobalData.queryParam.split = null;
 			var key = Datanium.GlobalData.popDimensionKey;
-			// time dimension no quotes
-			if (key == 'year') {
-				popSelection = popSelection.join(",");
-			} else {
-				popSelection = "'" + popSelection.join("','") + "'";
-			}
-			if (popSelection.length > 0) {
-				eval('Datanium.GlobalData.queryParam.filters.' + key + '=[' + popSelection + ']');
-				console.log(Datanium.GlobalData.queryParam.filters);
-				Datanium.util.CommonUtils.getCmpInActiveTab('elementPanel').fireEvent('submitFilter');
-			}
+			delete Datanium.GlobalData.queryParam.filters[key];
+			if (key == Datanium.GlobalData.queryParam.primaryFilter)
+				Datanium.GlobalData.queryParam.isSplit = false;
+			// Datanium.util.CommonUtils.clearPopDimFilter();
 		}
+		Datanium.util.CommonUtils.getCmpInActiveTab('elementPanel').fireEvent('submitFilter');
 	}
 });

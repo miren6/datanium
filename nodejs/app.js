@@ -29,14 +29,15 @@ if ('development' == app.get('env')) {
 	app.use(express.errorHandler());
 }
 
-app.get('/', routes.index);
+app.get('/:hashid', routes.index);
 app.get('/helloworld', routes.helloworld);
-app.get('/rest/cube/list', rest.cubeList);
-app.get('/rest/cube/info', rest.cubeInfo);
 app.post('/rest/query/result', rest.queryResult);
 app.get('/rest/indicator/search', rest.indicatorSearch);
 app.get('/rest/indicator/map', rest.indicatorMapping);
 app.get('/rest/dimension/search', rest.dimensionValueSearch);
+app.post('/rest/query/split', rest.querySplit);
+app.get('/rest/query/topicSearch', rest.topicSearch);
+app.post('/rest/save', rest.save);
 
 http.createServer(app).listen(app.get('port'), function() {
 	console.log('Express server listening on port ' + app.get('port'));

@@ -1,5 +1,8 @@
-extends layout
-
-block content
-  h1= title
-  p Welcome to #{title}
+include ../public/index.html
+script(type='text/javascript').
+      console.log('hashid:#{hashid}');
+      Datanium.GlobalData.hashid = '#{hashid}';
+      Datanium.GlobalData.qubeInfo = !{qubeInfo};
+      Datanium.GlobalData.queryParam = !{queryParam};
+      Datanium.GlobalData.rptMode = '#{rptMode}';
+      Datanium.GlobalData.chartMode = '#{chartMode}';

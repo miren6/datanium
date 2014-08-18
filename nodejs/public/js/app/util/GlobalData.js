@@ -1,12 +1,19 @@
 Ext.define('Datanium.GlobalData', {
 	singleton : true,
 	tabindex : 0,
+	hashid : null,
 	queryParam : {
 		dimensions : [],
 		measures : [],
 		groups : [],
 		filters : {},
-		primaryDimension : null
+		primaryDimension : null,
+		primaryFilter : null,
+		split : {
+			dimensions : null,
+			splitValue : []
+		},
+		isSplit : false
 	},
 	qubeInfo : {
 		dimensions : [],
@@ -18,6 +25,8 @@ Ext.define('Datanium.GlobalData', {
 	groups : [],
 	rptMode : 'grid',
 	chartMode : 'columnchart',
+	autoScale : false,
+	showLegend : true,
 	autoRun : true,
 	dimensionValues : [],
 	popDimensionKey : null,

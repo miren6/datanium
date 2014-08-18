@@ -9,28 +9,24 @@ Ext.define('Datanium.controller.ChartController', {
 				afterrender : this.onChartPanelReady,
 				beforeshow : this.onChartPanelShow
 			},
-			'chart-toolbar > button[action=column-chart]' : {
+			'chart-toolbar > button[action=auto-scale]' : {
 				click : function(btn) {
-					if (Datanium.GlobalData.chartMode != 'columnchart') {
-						Datanium.GlobalData.chartMode = 'columnchart';
-						Datanium.util.CommonUtils.generateChart();
+					if (btn.pressed) {
+						Datanium.GlobalData.autoScale = true;
+					} else {
+						Datanium.GlobalData.autoScale = false;
 					}
+					Datanium.util.CommonUtils.generateChart();
 				}
 			},
-			'chart-toolbar > button[action=line-chart]' : {
+			'chart-toolbar > button[action=hide-legend]' : {
 				click : function(btn) {
-					if (Datanium.GlobalData.chartMode != 'linechart') {
-						Datanium.GlobalData.chartMode = 'linechart';
-						Datanium.util.CommonUtils.generateChart();
+					if (btn.pressed) {
+						Datanium.GlobalData.showLegend = false;
+					} else {
+						Datanium.GlobalData.showLegend = true;
 					}
-				}
-			},
-			'chart-toolbar > button[action=stack-chart]' : {
-				click : function(btn) {
-					if (Datanium.GlobalData.chartMode != 'stackchart') {
-						Datanium.GlobalData.chartMode = 'stackchart';
-						Datanium.util.CommonUtils.generateChart();
-					}
+					Datanium.util.CommonUtils.generateChart();
 				}
 			}
 		});
@@ -42,5 +38,83 @@ Ext.define('Datanium.controller.ChartController', {
 	},
 	onChartPanelShow : function(me) {
 		console.log('onChartPanelShow');
+	},
+	reloadDimSwitchMenu : function() {
+		var dimensions = Datanium.GlobalData.queryParam.dimensions;
+		var primaryDim = Datanium.GlobalData.queryParam.primaryDimension;
+		var dimSwitch = Ext.getCmp('dimSwitch');
+		if (dimensions != null && dimensions.length > 0 && primaryDim != null) {
+			dimSwitch.menu.removeAll();
+			Ext.Array.each(dimensions, function(dim) {
+				var iconClsTxt = '';
+				if (primaryDim == dim.uniqueName) {
+					dimSwitch.setText(dim.text);
+					iconClsTxt = 'fa fa-star-o';
+				}
+				var item = new Ext.menu.Item({
+					iconCls : iconClsTxt,
+					text : dim.text,
+					handler : function() {
+						this.parentMenu.ownerButton.setText(dim.text);
+						Datanium.util.CommonUtils.markSelection(this);
+
+						Datanium.GlobalData.queryParam.primaryDimension = dim.uniqueName;
+						Datanium.util.CommonUtils.updateFields();
+						Datanium.util.CommonUtils.markPrimary();
+						Datanium.util.CommonUtils.getCmpInActiveTab('elementPanel').fireEvent('selectionChange');
+					}
+				});
+				dimSwitch.menu.add(item);
+			});
+			// enable dimSwitch
+			dimSwitch.enable();
+		} else {
+			dimSwitch.setText('Primary Dimension');
+			dimSwitch.disable();
+		}
+	},
+	reloadFilterSwitchMenu : function() {
+		console.log('reloadFilterSwitchMenu');
+		var filters = Datanium.GlobalData.queryParam.filters;
+		var filterKeys = Object.keys(Datanium.GlobalData.queryParam.filters);
+		var primaryFilter = Datanium.GlobalData.queryParam.split.dimensions;
+		var dimensions = Datanium.GlobalData.queryParam.dimensions;
+		var filterSwitch = Ext.getCmp('filterSwitch');
+		if (filters != null && filterKeys.length > 0 && primaryFilter != null) {
+			filterSwitch.menu.removeAll();
+			for (f in filters) {
+				Ext.Array.each(dimensions, function(dim) {
+					if (f == dim.uniqueName) {
+						var iconClsTxt = '';
+						if (primaryFilter == dim.uniqueName) {
+							filterSwitch.setText(dim.text);
+							iconClsTxt = 'fa fa-star-o';
+						}
+						var item = new Ext.menu.Item({
+							iconCls : iconClsTxt,
+							text : dim.text,
+							itemId : f,
+							handler : function() {
+								this.parentMenu.ownerButton.setText(dim.text);
+								Datanium.util.CommonUtils.markSelection(this);
+
+								var popSelection = [];
+								Datanium.GlobalData.queryParam.primaryFilter = this.itemId;
+								if (this.itemId in Datanium.GlobalData.queryParam.filters)
+									popSelection = eval('Datanium.GlobalData.queryParam.filters.' + this.itemId);
+								Datanium.util.CommonUtils.splitFilter(popSelection);
+								Datanium.util.CommonUtils.getCmpInActiveTab('elementPanel').fireEvent('submitFilter');
+							}
+						});
+						filterSwitch.menu.add(item);
+					}
+				});
+			}
+			// enable filterSwitch
+			filterSwitch.enable();
+		} else {
+			filterSwitch.setText('Primary Filter');
+			filterSwitch.disable();
+		}
 	}
 });

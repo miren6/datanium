@@ -1,6 +1,6 @@
 Ext.define('Datanium.controller.FieldController', {
 	extend : 'Ext.app.Controller',
-	views : [ 'DimensionTree', 'MeasureTree', 'ElementPanel', 'FieldPanel', 'FieldToolBar', 'FilterBox' ],
+	views : [ 'ElementPanel', 'FieldPanel', 'FieldToolBar', 'FilterBox' ],
 	stores : [],
 	models : [],
 	init : function() {
@@ -14,6 +14,7 @@ Ext.define('Datanium.controller.FieldController', {
 	},
 	elementSelChange : function(me) {
 		console.log('elementSelChange');
+		this.getController('ChartController').reloadDimSwitchMenu()
 		this.getController('GridController').generateRpt();
 	},
 	searchDimensionValue : function(key, name) {
@@ -46,6 +47,8 @@ Ext.define('Datanium.controller.FieldController', {
 	},
 	submitFilter : function() {
 		console.log('submitFilter');
+		Datanium.util.CommonUtils.updateFilterFields();
 		this.getController('GridController').generateRpt(true);
+		this.getController('ChartController').reloadFilterSwitchMenu();
 	}
 });
